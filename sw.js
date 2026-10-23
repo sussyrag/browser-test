@@ -207,7 +207,7 @@ async function handle(req, target) {
   const init = { method: req.method, headers, redirect: "manual" };
   if (!/^(GET|HEAD)$/.test(req.method)) init.body = await req.arrayBuffer();
   try {
-    const r = await libcurl.fetch(target, init);
+    const r = await Promise.race([libcurl.fetch(target, init), new Promise((_, rej) => setTimeout(() => rej(new Error("Timed out. The Wisp server is down or too slow. Change it in Settings.")), 30000))]);
     for (const c of (r.headers.getSetCookie ? r.headers.getSetCookie() : splitCookies(r.headers.get("set-cookie")))) setCookie(c, target);
     const out = new Headers();
     for (const [k, v] of r.headers) {
@@ -223,7 +223,7 @@ async function handle(req, target) {
     if (/javascript|ecmascript/i.test(type) || req.destination === "script")
       return new Response(rewriteJs(await r.text()), { status: r.status, headers: out });
     return new Response(await r.arrayBuffer(), { status: r.status, headers: out });
-  } catch (e) { return new Response("Proxy error: " + (e && e.message || e), { status: 502 }); }
+  } catch (e) { return new Response("<body style=\"font:15px system-ui;padding:40px;max-width:560px;margin:auto\"><h2>Could not load this page</h2><p style=\"color:#a33\">" + String(e && e.message || e).replace(/</g, "&lt;") + "</p></body>", { status: 502, headers: { "content-type": "text/html" } }); }
 }
 
 async function cookieApi(req, u) {
